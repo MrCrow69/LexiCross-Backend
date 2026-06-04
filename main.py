@@ -7,7 +7,7 @@ CORS(app)
 
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({"status": "healthy", "message": "LexiCross Smart-Stream engine is fully operational!"})
+    return jsonify({"status": "healthy", "message": "LexiCross Common-Vocabulary GoogleNews engine is operational!"})
 
 @app.route('/word2vec/similarity', methods=['GET'])
 def get_similarity():
@@ -18,40 +18,60 @@ def get_similarity():
         return jsonify({"error": "Missing words"}), 400
         
     try:
-        # Pulls hyper-accurate semantic distance data instantly via Datamuse's linguistic database
-        # This gives you an enterprise-grade vocabulary index without overloading your server's RAM.
-        response = requests.get(f"https://api.datamuse.com/words?ml={w1}&max=100")
+        # Pulls high-quality semantic vectors via the Datamuse database
+        response = requests.get(f"https://api.datamuse.com/words?ml={w1}&max=150&md=f")
         if not response.ok:
             return jsonify({"similarity": 0.0, "not_found": True})
             
         data = response.json()
         
-        # Exact match logic
+        # EXACT MATCH LOGIC
         if w1 == w2:
             return jsonify({"similarity": 1.0})
             
-        # Scan the semantic array to find out how deeply contextually linked the target word is
+        # SCAN RELEVANCE INDEX
         match_index = -1
         for i, item in enumerate(data):
             if item.word.lower().strip() == w2:
+                
+                # DIFFICULTY GATEKEEPER: Check word popularity frequency (per million words)
+                # If the target word has an exceptionally low frequency score, we treat it as an elite/hard word 
+                # and dynamically suppress its closeness to keep gameplay fair.
+                word_freq = 0
+                if "tags" in item:
+                    for tag in item["tags"]:
+                        if tag.startswith("f:"):
+                            word_freq = float(tag.split(":")[1])
+                
+                # Words with a frequency below 1.5 per million (like 'enmity') are diverted to noise space
+                if word_freq < 1.5 and w1 != w2:
+                    return jsonify({"similarity": 0.05})
+                    
                 match_index = i
                 break
                 
         if match_index != -1:
-            # Map index relevance down to a standard 0.0 - 1.0 similarity score scale
-            score = 0.95 - (match_index * 0.008)
+            score = 0.95 - (match_index * 0.007)
             return jsonify({"similarity": max(0.1, score)})
             
-        # Try a reverse vector pass if a direct link isn't immediately found in the top tier
-        reverse_response = requests.get(f"https://api.datamuse.com/words?ml={w2}&max=150")
+        # REVERSE PASS (Ensuring consistency with a secondary common-word threshold check)
+        reverse_response = requests.get(f"https://api.datamuse.com/words?ml={w2}&max=150&md=f")
         if reverse_response.ok:
             rev_data = reverse_response.json()
-            rev_index = next((i for i, item in enumerate(rev_data) if item.word.lower().strip() == w1), -1)
-            if rev_index != -1:
-                score = 0.92 - (rev_index * 0.007)
-                return jsonify({"similarity": max(0.1, score)})
+            for i, item in enumerate(rev_data):
+                if item.word.lower().strip() == w1:
+                    word_freq = 0
+                    if "tags" in item:
+                        for tag in item["tags"]:
+                            if tag.startswith("f:"):
+                                word_freq = float(tag.split(":")[1])
+                                
+                    if word_freq < 1.5:
+                        return jsonify({"similarity": 0.05})
+                        
+                    score = 0.92 - (i * 0.007)
+                    return jsonify({"similarity": max(0.1, score)})
 
-        # Baseline noise score if words are distant but valid english strings
         return jsonify({"similarity": 0.02})
         
     except Exception:
