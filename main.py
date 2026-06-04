@@ -11,6 +11,11 @@ print("⏳ Loading AI word vectors... (This takes about 60 seconds)")
 model = api.load("glove-wiki-gigaword-50")
 print("✅ Semantic engine is fully loaded and online!")
 
+# Add this right above the @app.route('/word2vec/similarity') line:
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"status": "healthy", "message": "LexiCross backend is fully operational!"})
+
 @app.route('/word2vec/similarity', methods=['GET'])
 def get_similarity():
     w1 = request.args.get('w1', '').lower().strip()
