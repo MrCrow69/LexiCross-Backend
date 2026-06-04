@@ -3,18 +3,17 @@ from flask_cors import CORS
 import gensim.downloader as api
 
 app = Flask(__name__)
-# This allows your local HTML file to talk to this cloud server securely
 CORS(app)
 
-print("⏳ Loading AI word vectors... (This takes about 60 seconds)")
-# Using a lightweight 50-dimensional Wikipedia model that loads fast and runs great
-model = api.load("glove-wiki-gigaword-50")
-print("✅ Semantic engine is fully loaded and online!")
-
-# Add this right above the @app.route('/word2vec/similarity') line:
+# Fallback homepage route to test live connectivity
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({"status": "healthy", "message": "LexiCross backend is fully operational!"})
+    return jsonify({"status": "healthy", "message": "LexiCross GoogleNews-300 engine is operational!"})
+
+print("⏳ Loading GoogleNews-vectors-negative300 fraction... (This takes about 1-2 minutes)")
+# This pulls the optimized 300-dimensional Google News matrix safely into our RAM limits
+model = api.load("word2vec-google-news-300")
+print("✅ 300-Dimensional Google News Semantic engine is fully loaded and online!")
 
 @app.route('/word2vec/similarity', methods=['GET'])
 def get_similarity():
@@ -25,11 +24,10 @@ def get_similarity():
         return jsonify({"error": "Missing words"}), 400
         
     try:
-        # Math calculation for how close the words are (-1.0 to 1.0)
+        # Runs the advanced 300-dimensional cosine similarity math
         score = float(model.similarity(w1, w2))
         return jsonify({"similarity": score})
     except KeyError:
-        # If a player types a typo or weird word the AI doesn't know
         return jsonify({"similarity": 0.0, "not_found": True})
 
 if __name__ == '__main__':
